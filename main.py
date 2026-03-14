@@ -3,8 +3,11 @@ import json
 import sys
 import importlib.util
 import tkinter as tk
+import ui_system
 from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
+
+import updater
 
 # ============================================================
 #                    CONSTANTS & CONFIG
@@ -13,7 +16,13 @@ from pathlib import Path
 APP_NAME    = "ShankTools"
 APP_VERSION = "1.0.32 alpha version"
 
-BASE_DIR = Path(__file__).resolve().parent
+def get_base_dir() -> Path:
+    if getattr(sys, 'frozen', False):
+        return Path(sys.executable).resolve().parent
+    else:
+        return Path(__file__).resolve().parent
+
+BASE_DIR = get_base_dir()
 
 CONFIG_DIR      = BASE_DIR / "data"
 PLUGINS_DIR     = BASE_DIR / "plugins"
@@ -298,12 +307,35 @@ class ShankToolsApp:
 
         self._tool_cards: list[dict] = []
 
-        # ← مرجع لـ ToolPanel المفتوح حالياً (داخل الـ workspace)
         self._current_tool_panel = None
 
         self._setup_window()
         self._build_ui()
         self._load_plugins()
+        self._check_updates_on_start()
+
+    # ----------------------------------------------------------
+    #  Auto-Update Check
+    # ----------------------------------------------------------
+
+    def _check_updates_on_start(self):
+        import threading
+
+        def check():
+            info = updater.check_for_updates(silent=True)
+            if info:
+                self.root.after(0, lambda: self._show_update_window(info))
+
+        threading.Thread(target=check, daemon=True).start()
+
+    def _show_update_window(self, update_info):
+        from update_window import UpdateWindow
+        UpdateWindow(self.root, update_info, self.theme, updater)
+
+    def _manual_check_update(self):
+        info = updater.check_for_updates(silent=False)
+        if info:
+            self._show_update_window(info)
 
     # ----------------------------------------------------------
     #  Window Setup
@@ -318,7 +350,9 @@ class ShankToolsApp:
         self.root.configure(bg=self.theme["bg"])
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         try:
-            self.root.iconbitmap("icon.ico")
+            icon_path = BASE_DIR / "icon.ico"
+            if icon_path.exists():
+                self.root.iconbitmap(str(icon_path))
         except Exception:
             pass
 
@@ -350,6 +384,12 @@ class ShankToolsApp:
 
         btn_frame = tk.Frame(self.header, bg=self.theme["header_bg"])
         btn_frame.pack(side="right", padx=15)
+
+        HoverButton(
+            btn_frame, self.theme,
+            text="🔄 Check for Updates",
+            command=self._manual_check_update,
+        ).pack(side="right", padx=5)
 
         HoverButton(
             btn_frame, self.theme,
@@ -407,12 +447,9 @@ class ShankToolsApp:
         self._build_tools_view()
 
     def _build_tools_view(self):
-        """بناء عرض البطاقات (القائمة الرئيسية)"""
-        # حاوية عرض الأدوات
         self.tools_view = tk.Frame(self.workspace, bg=self.theme["bg"])
         self.tools_view.pack(fill="both", expand=True)
 
-        # شريط العنوان العلوي
         top_bar = tk.Frame(self.tools_view, bg=self.theme["bg_secondary"], height=50)
         top_bar.pack(fill="x")
         top_bar.pack_propagate(False)
@@ -423,7 +460,6 @@ class ShankToolsApp:
             font=("Segoe UI", 13, "bold"),
         ).pack(side="left", padx=20, pady=10)
 
-        # حقل البحث
         self._search_var = tk.StringVar()
         self._search_var.trace_add("write", self._on_search)
 
@@ -448,7 +484,6 @@ class ShankToolsApp:
         )
         self._search_entry.pack(side="left", padx=5, ipady=4)
 
-        # Canvas + Scrollbar
         canvas_frame = tk.Frame(self.tools_view, bg=self.theme["bg"])
         canvas_frame.pack(fill="both", expand=True)
 
@@ -542,17 +577,15 @@ class ShankToolsApp:
             self.tools_grid.columnconfigure(c, weight=1)
 
     # ----------------------------------------------------------
-    #  ★ فتح أداة داخل الـ workspace (بدون نافذة منفصلة)
+    #  Open a tool inside the workspace
     # ----------------------------------------------------------
 
     def show_tool_panel(self, tool_info):
-        """يخفي عرض البطاقات ويعرض الأداة داخل الـ workspace"""
         self.tools_view.pack_forget()
 
         self._tool_panel_frame = tk.Frame(self.workspace, bg=self.theme["bg"])
         self._tool_panel_frame.pack(fill="both", expand=True)
 
-        # ★ Check if tool has custom UI builder
         if tool_info.get("custom_ui") and "builder" in tool_info:
             tool_info["builder"](
                 parent=self._tool_panel_frame,
@@ -561,7 +594,6 @@ class ShankToolsApp:
                 back_cb=self._back_to_tools,
             )
         else:
-            # Fall back to generic EmbeddedToolPanel
             from ui_system import EmbeddedToolPanel
             self._current_tool_panel = EmbeddedToolPanel(
                 parent=self._tool_panel_frame,
@@ -572,7 +604,6 @@ class ShankToolsApp:
             )
 
     def _back_to_tools(self):
-        """يرجع لعرض البطاقات"""
         if hasattr(self, "_tool_panel_frame") and self._tool_panel_frame.winfo_exists():
             self._tool_panel_frame.destroy()
         self._current_tool_panel = None
@@ -580,7 +611,7 @@ class ShankToolsApp:
         self._set_status("Ready")
 
     # ----------------------------------------------------------
-    #  Public API للـ Plugins
+    #  Public API for Plugins
     # ----------------------------------------------------------
 
     def add_tool_card(self, icon="🔧", title="Tool",
@@ -647,18 +678,15 @@ class ShankToolsApp:
         self._set_status(f"Theme switched to: {self.theme['title']}")
 
     def _apply_theme(self):
-        # ─── 1) مسح البطاقات القديمة ───
         self._tool_cards.clear()
 
-        # ─── 2) إعادة بناء الواجهة ───
         self.root.configure(bg=self.theme["bg"])
         for widget in self.root.winfo_children():
             widget.destroy()
 
         self._build_ui()
-
-        # ─── 3) إعادة تحميل كل الـ plugins والأدوات ───
         self._load_plugins()
+
     # ----------------------------------------------------------
     #  Plugins Loader
     # ----------------------------------------------------------
@@ -677,8 +705,12 @@ class ShankToolsApp:
 
     @staticmethod
     def _load_module(path: Path):
-        spec = importlib.util.spec_from_file_location(path.stem, path)
-        mod  = importlib.util.module_from_spec(spec)
+        module_name = f"dynamic_{path.stem}"
+        spec = importlib.util.spec_from_file_location(module_name, str(path))
+        if spec is None or spec.loader is None:
+            raise ImportError(f"Cannot load module from {path}")
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = mod
         spec.loader.exec_module(mod)
         return mod
 
@@ -686,7 +718,6 @@ class ShankToolsApp:
         def tool(icon="🔧", title="Tool", desc="", command=None, tool_info=None):
             _command = command
             if tool_info is not None and _command is None:
-                # ★ بدل ما يفتح Toplevel، يفتح داخل الـ workspace
                 def _command(_ti=tool_info):
                     self.show_tool_panel(_ti)
 

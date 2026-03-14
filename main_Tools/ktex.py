@@ -453,7 +453,7 @@ class DXTEncoder:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#                              KTEX CONVERTER (MAIN CLASS)
+#                              KTEX CONVERTER
 # ══════════════════════════════════════════════════════════════════════════════
 
 class KTEXConverter:
@@ -465,10 +465,6 @@ class KTEXConverter:
     def log(self, msg: str):
         if self.verbose:
             print(f"  {msg}")
-
-    # ──────────────────────────────────────────────────────────────────────────
-    #                           HEADER PARSING
-    # ──────────────────────────────────────────────────────────────────────────
 
     def _detect_structure(self, data: bytes) -> KTEXInfo:
         if len(data) < 12 or data[0:4] != KTEX_MAGIC:
@@ -524,10 +520,6 @@ class KTEXConverter:
             else:
                 raise ValueError(f"Unknown KTEX version: {version}")
 
-    # ──────────────────────────────────────────────────────────────────────────
-    #                           EXTRACTION (KTEX → PNG)
-    # ──────────────────────────────────────────────────────────────────────────
-
     def extract(self, input_path: Path, output_path: Optional[Path] = None,
                 extract_all_mipmaps: bool = False) -> ConversionResult:
         start = time.time()
@@ -540,7 +532,7 @@ class KTEXConverter:
             info = self._detect_structure(data)
 
             with _print_lock:
-                print(f"📄 {input_path.name}")
+                print(f"  {input_path.name}")
                 print(f"   Dimensions: {info.width}x{info.height}")
                 print(f"   Format: {info.format.name_str}")
                 print(f"   Version: {info.version} ({'mipmaps' if info.has_mipmaps else 'no mipmaps'})")
@@ -557,7 +549,7 @@ class KTEXConverter:
             image.save(output_path, 'PNG', optimize=True)
 
             with _print_lock:
-                print(f"   ✓ Saved: {output_path.name}")
+                print(f"   Saved: {output_path.name}")
 
             self._save_metadata(output_path, info)
 
@@ -571,7 +563,7 @@ class KTEXConverter:
 
         except Exception as e:
             with _print_lock:
-                print(f"   ✗ Error: {e}")
+                print(f"   Error: {e}")
             return ConversionResult(
                 success=False, input_path=input_path,
                 error=str(e), duration=time.time() - start
@@ -603,10 +595,6 @@ class KTEXConverter:
 
             offset += mip.size
 
-    # ──────────────────────────────────────────────────────────────────────────
-    #                           REBUILDING (PNG → KTEX)
-    # ──────────────────────────────────────────────────────────────────────────
-
     def rebuild(self, input_path: Path, output_path: Optional[Path] = None,
                 original_ktex: Optional[Path] = None,
                 force_mipmaps: Optional[bool] = None) -> ConversionResult:
@@ -618,7 +606,7 @@ class KTEXConverter:
             width, height = image.size
 
             with _print_lock:
-                print(f"📄 {input_path.name}")
+                print(f"  {input_path.name}")
                 print(f"   Dimensions: {width}x{height}")
 
             if output_path is None:
@@ -654,7 +642,7 @@ class KTEXConverter:
                 f.write(final_data)
 
             with _print_lock:
-                print(f"   ✓ Saved: {output_path.name} ({len(final_data):,} bytes)")
+                print(f"   Saved: {output_path.name} ({len(final_data):,} bytes)")
 
             return ConversionResult(
                 success=True, input_path=input_path,
@@ -663,7 +651,7 @@ class KTEXConverter:
 
         except Exception as e:
             with _print_lock:
-                print(f"   ✗ Error: {e}")
+                print(f"   Error: {e}")
             return ConversionResult(
                 success=False, input_path=input_path,
                 error=str(e), duration=time.time() - start
@@ -681,7 +669,7 @@ class KTEXConverter:
             info = self._detect_structure(orig_data)
             header_data = info.raw_header
             meta = info.to_dict()
-            print(f"   📋 Original TEX info:")
+            print(f"   Original TEX info:")
             print(f"      Version: {meta['version']}")
             print(f"      Format: {meta['format']} (ID: {meta['format_id']})")
             print(f"      Size: {meta['width']}x{meta['height']}")
@@ -718,7 +706,7 @@ class KTEXConverter:
         if header_data or meta:
             return header_data, meta
 
-        print(f"   ⚠️  No original TEX found, using defaults (Version 8, DXT5, with mipmaps)")
+        print(f"   No original TEX found, using defaults (Version 8, DXT5, with mipmaps)")
         return header_data, meta
 
     def _encode_with_mipmaps(self, image: Image.Image, mipmaps: List[MipmapInfo],
@@ -765,10 +753,6 @@ class KTEXConverter:
             header[10:12] = struct.pack('<H', height)
             return bytes(header)
 
-    # ──────────────────────────────────────────────────────────────────────────
-    #                           BATCH PROCESSING
-    # ──────────────────────────────────────────────────────────────────────────
-
     def batch_extract(self, files: List[Path], output_dir: Optional[Path] = None,
                       workers: int = 4,
                       extract_all_mipmaps: bool = False) -> List[ConversionResult]:
@@ -813,10 +797,6 @@ class KTEXConverter:
 
         return results
 
-    # ──────────────────────────────────────────────────────────────────────────
-    #                           FILE INFO
-    # ──────────────────────────────────────────────────────────────────────────
-
     def info(self, input_path: Path) -> Optional[KTEXInfo]:
         input_path = Path(input_path)
 
@@ -850,68 +830,30 @@ class KTEXConverter:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#                    GUI WRAPPER FUNCTIONS (for ShankTools UI)
+#                   STANDALONE INFO HELPER
 # ══════════════════════════════════════════════════════════════════════════════
 
-def ktex_extract(input_file: str, output_file: str = "", extract_mipmaps: bool = False) -> str:
-    """GUI-callable: Extract KTEX → PNG"""
-    converter = KTEXConverter(verbose=True)
-    inp = Path(input_file)
-    out = Path(output_file) if output_file else None
-    result = converter.extract(inp, out, extract_all_mipmaps=extract_mipmaps)
-    if result.success:
-        return f"✓ Extracted: {result.output_path.name} ({result.duration:.2f}s)"
-    else:
-        return f"✗ Failed: {result.error}"
+def ktex_info(filepath: str) -> str:
+    """Return a formatted info string for a single TEX file."""
+    import io, contextlib
 
+    buf = io.StringIO()
+    converter = KTEXConverter(verbose=False)
 
-def ktex_rebuild(input_file: str, output_file: str = "",
-                 original_tex_file: str = "", force_mipmaps: bool = True) -> str:
-    """GUI-callable: Rebuild PNG → KTEX"""
-    converter = KTEXConverter(verbose=True)
-    inp = Path(input_file)
-    out = Path(output_file) if output_file else None
-    orig = Path(original_tex_file) if original_tex_file else None
-    result = converter.rebuild(inp, out, original_ktex=orig, force_mipmaps=force_mipmaps)
-    if result.success:
-        return f"✓ Rebuilt: {result.output_path.name} ({result.duration:.2f}s)"
-    else:
-        return f"✗ Failed: {result.error}"
+    with contextlib.redirect_stdout(buf):
+        converter.info(Path(filepath))
 
-
-def ktex_info(input_file: str) -> str:
-    """GUI-callable: Show KTEX file info"""
-    converter = KTEXConverter(verbose=True)
-    info = converter.info(Path(input_file))
-    if info:
-        lines = [
-            f"File: {Path(input_file).name}",
-            f"Dimensions: {info.width} x {info.height}",
-            f"Format: {info.format.name_str}",
-            f"Version: {info.version}",
-            f"Header: {info.header_size} bytes",
-            f"Mipmaps: {info.mipmap_count} levels",
-        ]
-        if info.has_mipmaps:
-            for mip in info.mipmaps:
-                lines.append(f"  Level {mip.level}: {mip.width}x{mip.height} ({mip.size:,} bytes)")
-        return "\n".join(lines)
-    else:
-        return "✗ Failed to read file info"
+    return buf.getvalue().rstrip()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#        register() — Called by main.py when loading from main_tools/
-# ══════════════════════════════════════════════════════════════════════════════
-
-# ══════════════════════════════════════════════════════════════════════════════
-#        register() — Called by main.py when loading from main_tools/
+#                    MAIN_TOOLS REGISTRATION (for main.py)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def register(tool):
     """
-    Registers a single KTEX tool card.
-    When clicked, it opens a full workspace panel with all features.
+    Registers the KTEX tool card.
+    Opens a simple dialog-based interface (no embedded panel).
     """
     tool(
         icon="🖼",
@@ -926,21 +868,13 @@ def register(tool):
     )
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-#                    EMBEDDED WORKSPACE UI
-# ══════════════════════════════════════════════════════════════════════════════
-
 def build_ktex_panel(parent, theme, status_cb, back_cb):
     """
-    Builds the full KTEX tool UI directly inside the workspace.
-    Called by the app when the card is clicked.
-
-    Returns the main frame.
+    Lightweight panel – uses only tkinter (already loaded by main.py).
+    No extra imports, no threading conflicts with PyInstaller.
     """
     import tkinter as tk
     from tkinter import ttk, filedialog, messagebox
-    from pathlib import Path
-    import threading
 
     converter = KTEXConverter(verbose=True)
 
@@ -948,87 +882,69 @@ def build_ktex_panel(parent, theme, status_cb, back_cb):
     main = tk.Frame(parent, bg=theme["bg"])
     main.pack(fill="both", expand=True)
 
-    # ── Top bar with back button and title ────────────────────
+    # ── Top bar ───────────────────────────────────────────────
     top_bar = tk.Frame(main, bg=theme["bg_secondary"], height=50)
     top_bar.pack(fill="x")
     top_bar.pack_propagate(False)
 
-    back_btn = tk.Button(
+    tk.Button(
         top_bar, text="← Back", bg=theme["btn_bg"], fg=theme["btn_fg"],
         font=("Segoe UI", 10, "bold"), relief="flat", cursor="hand2",
         activebackground=theme["btn_hover"], command=back_cb,
-    )
-    back_btn.pack(side="left", padx=10, pady=8)
+    ).pack(side="left", padx=10, pady=8)
 
     tk.Label(
-        top_bar, text="🖼  KTEX Converter",
+        top_bar, text="KTEX Converter",
         bg=theme["bg_secondary"], fg=theme["text"],
         font=("Segoe UI", 14, "bold"),
     ).pack(side="left", padx=10, pady=10)
 
-    # ── Content area (two columns) ────────────────────────────
+    # ── Content ───────────────────────────────────────────────
     content = tk.Frame(main, bg=theme["bg"])
     content.pack(fill="both", expand=True, padx=15, pady=10)
 
-    # LEFT: File selection & options
     left_panel = tk.Frame(content, bg=theme["bg_panel"], width=400)
     left_panel.pack(side="left", fill="y", padx=(0, 8))
     left_panel.pack_propagate(False)
 
-    # RIGHT: Output / log
     right_panel = tk.Frame(content, bg=theme["bg_panel"])
     right_panel.pack(side="left", fill="both", expand=True)
 
-    # ══════════════════════════════════════════════════════════
-    # LEFT PANEL
-    # ══════════════════════════════════════════════════════════
-
+    # ── Left: File list ───────────────────────────────────────
     tk.Label(
         left_panel, text="Selected Files",
         bg=theme["bg_panel"], fg=theme["text"],
         font=("Segoe UI", 12, "bold"),
     ).pack(padx=12, pady=(12, 4), anchor="w")
 
-    # ── File list ─────────────────────────────────────────────
     file_list_frame = tk.Frame(left_panel, bg=theme["bg_panel"])
     file_list_frame.pack(fill="both", expand=True, padx=12, pady=4)
 
     file_listbox = tk.Listbox(
         file_list_frame,
         bg=theme["entry_bg"], fg=theme["entry_fg"],
-        selectbackground=theme["accent"],
-        selectforeground="#FFFFFF",
-        font=("Consolas", 9),
-        relief="flat", bd=0,
-        selectmode="extended",
+        selectbackground=theme["accent"], selectforeground="#FFFFFF",
+        font=("Consolas", 9), relief="flat", bd=0, selectmode="extended",
     )
-    file_scrollbar = ttk.Scrollbar(
-        file_list_frame, orient="vertical", command=file_listbox.yview
-    )
+    file_scrollbar = ttk.Scrollbar(file_list_frame, orient="vertical", command=file_listbox.yview)
     file_listbox.configure(yscrollcommand=file_scrollbar.set)
-
     file_scrollbar.pack(side="right", fill="y")
     file_listbox.pack(side="left", fill="both", expand=True)
 
-    # Store full paths
-    selected_files: list[Path] = []
+    selected_files = []
 
     def add_files():
         paths = filedialog.askopenfilenames(
             title="Select files",
-            filetypes=[
-                ("TEX & PNG Files", "*.tex *.png"),
-                ("TEX Files", "*.tex"),
-                ("PNG Files", "*.png"),
-                ("All Files", "*.*"),
-            ],
+            filetypes=[("TEX & PNG", "*.tex *.png"), ("TEX", "*.tex"),
+                       ("PNG", "*.png"), ("All", "*.*")],
         )
         for p in paths:
             p = Path(p)
             if p not in selected_files:
                 selected_files.append(p)
                 file_listbox.insert("end", p.name)
-        _update_file_count()
+        _update_count()
 
     def add_folder():
         folder = filedialog.askdirectory(title="Select folder")
@@ -1040,265 +956,191 @@ def build_ktex_panel(parent, theme, status_cb, back_cb):
                 if f not in selected_files:
                     selected_files.append(f)
                     file_listbox.insert("end", f.name)
-        _update_file_count()
+        _update_count()
 
-    def remove_selected():
-        indices = list(file_listbox.curselection())
-        for i in reversed(indices):
+    def remove_sel():
+        for i in reversed(file_listbox.curselection()):
             file_listbox.delete(i)
             selected_files.pop(i)
-        _update_file_count()
+        _update_count()
 
-    def clear_files():
+    def clear_all():
         file_listbox.delete(0, "end")
         selected_files.clear()
-        _update_file_count()
+        _update_count()
 
-    def _update_file_count():
-        tex_count = sum(1 for f in selected_files if f.suffix.lower() == ".tex")
-        png_count = sum(1 for f in selected_files if f.suffix.lower() == ".png")
-        file_count_label.config(
-            text=f"{len(selected_files)} file(s)  |  TEX: {tex_count}  PNG: {png_count}"
-        )
+    def _update_count():
+        t = sum(1 for f in selected_files if f.suffix.lower() == ".tex")
+        p = sum(1 for f in selected_files if f.suffix.lower() == ".png")
+        count_lbl.config(text=f"{len(selected_files)} file(s)  |  TEX: {t}  PNG: {p}")
 
-    # ── File buttons ──────────────────────────────────────────
-    file_btn_frame = tk.Frame(left_panel, bg=theme["bg_panel"])
-    file_btn_frame.pack(fill="x", padx=12, pady=4)
-
-    for text, cmd in [("+ Add Files", add_files),
-                      ("📁 Add Folder", add_folder),
-                      ("✕ Remove", remove_selected),
-                      ("Clear All", clear_files)]:
+    btn_frame = tk.Frame(left_panel, bg=theme["bg_panel"])
+    btn_frame.pack(fill="x", padx=12, pady=4)
+    for txt, cmd in [("+ Files", add_files), ("+ Folder", add_folder),
+                     ("Remove", remove_sel), ("Clear", clear_all)]:
         tk.Button(
-            file_btn_frame, text=text, bg=theme["entry_bg"],
-            fg=theme["text"], font=("Segoe UI", 9),
-            relief="flat", cursor="hand2", command=cmd,
+            btn_frame, text=txt, bg=theme["entry_bg"], fg=theme["text"],
+            font=("Segoe UI", 9), relief="flat", cursor="hand2", command=cmd,
             activebackground=theme["btn_hover"], activeforeground="#FFF",
         ).pack(side="left", padx=2, pady=2, expand=True, fill="x")
 
-    file_count_label = tk.Label(
-        left_panel, text="0 file(s)",
-        bg=theme["bg_panel"], fg=theme["text_secondary"],
-        font=("Segoe UI", 9),
-    )
-    file_count_label.pack(padx=12, pady=(0, 6), anchor="w")
+    count_lbl = tk.Label(left_panel, text="0 file(s)",
+                         bg=theme["bg_panel"], fg=theme["text_secondary"],
+                         font=("Segoe UI", 9))
+    count_lbl.pack(padx=12, pady=(0, 6), anchor="w")
 
     # ── Options ───────────────────────────────────────────────
     tk.Frame(left_panel, bg=theme["border"], height=1).pack(fill="x", padx=12, pady=4)
+    tk.Label(left_panel, text="Options", bg=theme["bg_panel"], fg=theme["text"],
+             font=("Segoe UI", 11, "bold")).pack(padx=12, pady=(8, 4), anchor="w")
 
-    tk.Label(
-        left_panel, text="Options",
-        bg=theme["bg_panel"], fg=theme["text"],
-        font=("Segoe UI", 11, "bold"),
-    ).pack(padx=12, pady=(8, 4), anchor="w")
-
-    # Output directory
     output_dir_var = tk.StringVar(value="")
 
-    def pick_output_dir():
-        d = filedialog.askdirectory(title="Select output directory")
+    def pick_out():
+        d = filedialog.askdirectory(title="Output directory")
         if d:
             output_dir_var.set(d)
 
-    out_frame = tk.Frame(left_panel, bg=theme["bg_panel"])
-    out_frame.pack(fill="x", padx=12, pady=2)
+    of = tk.Frame(left_panel, bg=theme["bg_panel"])
+    of.pack(fill="x", padx=12, pady=2)
+    tk.Label(of, text="Output folder:", bg=theme["bg_panel"], fg=theme["text"],
+             font=("Segoe UI", 9)).pack(anchor="w")
+    oef = tk.Frame(of, bg=theme["bg_panel"])
+    oef.pack(fill="x")
+    tk.Entry(oef, textvariable=output_dir_var, bg=theme["entry_bg"], fg=theme["entry_fg"],
+             insertbackground=theme["text"], relief="flat", font=("Segoe UI", 9)
+             ).pack(side="left", fill="x", expand=True, ipady=3)
+    tk.Button(oef, text="...", bg=theme["entry_bg"], fg=theme["text"],
+              font=("Segoe UI", 9, "bold"), relief="flat", cursor="hand2",
+              width=3, command=pick_out).pack(side="right")
+    tk.Label(of, text="(empty = same as input)", bg=theme["bg_panel"],
+             fg=theme["text_secondary"], font=("Segoe UI", 8)).pack(anchor="w")
 
-    tk.Label(
-        out_frame, text="Output folder:", bg=theme["bg_panel"],
-        fg=theme["text"], font=("Segoe UI", 9),
-    ).pack(anchor="w")
+    extract_mip_var = tk.BooleanVar(value=False)
+    force_mip_var = tk.BooleanVar(value=True)
 
-    out_entry_frame = tk.Frame(out_frame, bg=theme["bg_panel"])
-    out_entry_frame.pack(fill="x")
-
-    out_entry = tk.Entry(
-        out_entry_frame, textvariable=output_dir_var,
-        bg=theme["entry_bg"], fg=theme["entry_fg"],
-        insertbackground=theme["text"], relief="flat",
-        font=("Segoe UI", 9),
-    )
-    out_entry.pack(side="left", fill="x", expand=True, ipady=3)
-
-    tk.Button(
-        out_entry_frame, text="…", bg=theme["entry_bg"],
-        fg=theme["text"], font=("Segoe UI", 9, "bold"),
-        relief="flat", cursor="hand2", width=3, command=pick_output_dir,
-    ).pack(side="right")
-
-    tk.Label(
-        out_frame, text="(leave empty = same folder as input)",
-        bg=theme["bg_panel"], fg=theme["text_secondary"],
-        font=("Segoe UI", 8),
-    ).pack(anchor="w")
-
-    # Checkboxes
-    extract_mipmaps_var = tk.BooleanVar(value=False)
-    force_mipmaps_var = tk.BooleanVar(value=True)
-
-    tk.Checkbutton(
-        left_panel, text="Extract all mipmap levels",
-        variable=extract_mipmaps_var,
-        bg=theme["bg_panel"], fg=theme["text"],
-        selectcolor=theme["entry_bg"],
-        activebackground=theme["bg_panel"],
-        activeforeground=theme["text"],
-        font=("Segoe UI", 9),
-    ).pack(padx=12, pady=2, anchor="w")
-
-    tk.Checkbutton(
-        left_panel, text="Generate mipmaps on rebuild",
-        variable=force_mipmaps_var,
-        bg=theme["bg_panel"], fg=theme["text"],
-        selectcolor=theme["entry_bg"],
-        activebackground=theme["bg_panel"],
-        activeforeground=theme["text"],
-        font=("Segoe UI", 9),
-    ).pack(padx=12, pady=2, anchor="w")
+    tk.Checkbutton(left_panel, text="Extract all mipmap levels",
+                   variable=extract_mip_var, bg=theme["bg_panel"], fg=theme["text"],
+                   selectcolor=theme["entry_bg"], activebackground=theme["bg_panel"],
+                   activeforeground=theme["text"], font=("Segoe UI", 9)
+                   ).pack(padx=12, pady=2, anchor="w")
+    tk.Checkbutton(left_panel, text="Generate mipmaps on rebuild",
+                   variable=force_mip_var, bg=theme["bg_panel"], fg=theme["text"],
+                   selectcolor=theme["entry_bg"], activebackground=theme["bg_panel"],
+                   activeforeground=theme["text"], font=("Segoe UI", 9)
+                   ).pack(padx=12, pady=2, anchor="w")
 
     # ── Action buttons ────────────────────────────────────────
     tk.Frame(left_panel, bg=theme["border"], height=1).pack(fill="x", padx=12, pady=8)
+    af = tk.Frame(left_panel, bg=theme["bg_panel"])
+    af.pack(fill="x", padx=12, pady=(0, 12))
 
-    action_frame = tk.Frame(left_panel, bg=theme["bg_panel"])
-    action_frame.pack(fill="x", padx=12, pady=(0, 12))
-
-    def _run_in_thread(func):
-        """Run a conversion function in a background thread."""
-        threading.Thread(target=func, daemon=True).start()
+    def _threaded(fn):
+        import threading as _t
+        _t.Thread(target=fn, daemon=True).start()
 
     def do_extract():
-        tex_files = [f for f in selected_files if f.suffix.lower() == ".tex"]
-        if not tex_files:
-            messagebox.showwarning("No TEX files", "Please add .tex files to extract.")
+        tex = [f for f in selected_files if f.suffix.lower() == ".tex"]
+        if not tex:
+            messagebox.showwarning("No TEX", "Add .tex files first.")
             return
         _log_clear()
-        _log(f"Extracting {len(tex_files)} file(s)...\n")
-        status_cb(f"Extracting {len(tex_files)} file(s)...")
+        _log(f"Extracting {len(tex)} file(s)...\n")
+        status_cb(f"Extracting {len(tex)} file(s)...")
 
-        def _work():
+        def work():
             out = Path(output_dir_var.get()) if output_dir_var.get() else None
-            results = converter.batch_extract(
-                tex_files, out,
-                extract_all_mipmaps=extract_mipmaps_var.get(),
-            )
-            success = sum(1 for r in results if r and r.success)
-            for r in results:
+            res = converter.batch_extract(tex, out,
+                                          extract_all_mipmaps=extract_mip_var.get())
+            ok = sum(1 for r in res if r and r.success)
+            for r in res:
                 if r and r.success:
-                    _log(f"  ✓ {r.input_path.name} → {r.output_path.name}  ({r.duration:.2f}s)")
+                    _log(f"  OK  {r.input_path.name} -> {r.output_path.name}  ({r.duration:.2f}s)")
                 elif r:
-                    _log(f"  ✗ {r.input_path.name}: {r.error}")
-            _log(f"\nDone: {success}/{len(results)} succeeded")
-            status_cb(f"Extraction complete: {success}/{len(results)}")
-
-        _run_in_thread(_work)
+                    _log(f"  ERR {r.input_path.name}: {r.error}")
+            _log(f"\nDone: {ok}/{len(res)}")
+            status_cb(f"Extract: {ok}/{len(res)}")
+        _threaded(work)
 
     def do_rebuild():
-        png_files = [f for f in selected_files if f.suffix.lower() == ".png"]
-        if not png_files:
-            messagebox.showwarning("No PNG files", "Please add .png files to rebuild.")
+        png = [f for f in selected_files if f.suffix.lower() == ".png"]
+        if not png:
+            messagebox.showwarning("No PNG", "Add .png files first.")
             return
         _log_clear()
-        _log(f"Rebuilding {len(png_files)} file(s)...\n")
-        status_cb(f"Rebuilding {len(png_files)} file(s)...")
+        _log(f"Rebuilding {len(png)} file(s)...\n")
+        status_cb(f"Rebuilding {len(png)} file(s)...")
 
-        def _work():
+        def work():
             out = Path(output_dir_var.get()) if output_dir_var.get() else None
-            results = converter.batch_rebuild(
-                png_files, out,
-                force_mipmaps=force_mipmaps_var.get(),
-            )
-            success = sum(1 for r in results if r and r.success)
-            for r in results:
+            res = converter.batch_rebuild(png, out, force_mipmaps=force_mip_var.get())
+            ok = sum(1 for r in res if r and r.success)
+            for r in res:
                 if r and r.success:
-                    _log(f"  ✓ {r.input_path.name} → {r.output_path.name}  ({r.duration:.2f}s)")
+                    _log(f"  OK  {r.input_path.name} -> {r.output_path.name}  ({r.duration:.2f}s)")
                 elif r:
-                    _log(f"  ✗ {r.input_path.name}: {r.error}")
-            _log(f"\nDone: {success}/{len(results)} succeeded")
-            status_cb(f"Rebuild complete: {success}/{len(results)}")
-
-        _run_in_thread(_work)
+                    _log(f"  ERR {r.input_path.name}: {r.error}")
+            _log(f"\nDone: {ok}/{len(res)}")
+            status_cb(f"Rebuild: {ok}/{len(res)}")
+        _threaded(work)
 
     def do_info():
-        tex_files = [f for f in selected_files if f.suffix.lower() == ".tex"]
-        if not tex_files:
-            messagebox.showwarning("No TEX files", "Please add .tex files to inspect.")
+        tex = [f for f in selected_files if f.suffix.lower() == ".tex"]
+        if not tex:
+            messagebox.showwarning("No TEX", "Add .tex files first.")
             return
         _log_clear()
-        status_cb(f"Inspecting {len(tex_files)} file(s)...")
+        status_cb(f"Inspecting {len(tex)} file(s)...")
 
-        def _work():
-            for f in tex_files:
-                result = ktex_info(str(f))
-                _log(result)
-                _log("─" * 40)
-            status_cb("Info complete")
+        def work():
+            for f in tex:
+                _log(ktex_info(str(f)))
+                _log("-" * 40)
+            status_cb("Info done")
+        _threaded(work)
 
-        _run_in_thread(_work)
-
-    # Big action buttons
-    for text, cmd, color in [
-        ("🖼  Extract (TEX → PNG)", do_extract, theme["btn_bg"]),
-        ("🔨  Rebuild (PNG → TEX)", do_rebuild, theme["accent"]),
-        ("ℹ️  File Info", do_info, theme["entry_bg"]),
+    for txt, cmd, clr in [
+        ("Extract (TEX->PNG)", do_extract, theme["btn_bg"]),
+        ("Rebuild (PNG->TEX)", do_rebuild, theme["accent"]),
+        ("File Info", do_info, theme["entry_bg"]),
     ]:
-        btn = tk.Button(
-            action_frame, text=text, bg=color,
-            fg=theme["btn_fg"] if color != theme["entry_bg"] else theme["text"],
-            font=("Segoe UI", 11, "bold"),
-            relief="flat", cursor="hand2", command=cmd,
-            activebackground=theme["btn_hover"],
-            activeforeground="#FFF",
-        )
-        btn.pack(fill="x", pady=3, ipady=6)
+        tk.Button(
+            af, text=txt, bg=clr,
+            fg=theme["btn_fg"] if clr != theme["entry_bg"] else theme["text"],
+            font=("Segoe UI", 11, "bold"), relief="flat", cursor="hand2",
+            command=cmd, activebackground=theme["btn_hover"], activeforeground="#FFF",
+        ).pack(fill="x", pady=3, ipady=6)
 
-    # ══════════════════════════════════════════════════════════
-    # RIGHT PANEL — Log / Output
-    # ══════════════════════════════════════════════════════════
+    # ── Right: Log ────────────────────────────────────────────
+    tk.Label(right_panel, text="Output Log", bg=theme["bg_panel"], fg=theme["text"],
+             font=("Segoe UI", 12, "bold")).pack(padx=12, pady=(12, 4), anchor="w")
 
-    tk.Label(
-        right_panel, text="Output Log",
-        bg=theme["bg_panel"], fg=theme["text"],
-        font=("Segoe UI", 12, "bold"),
-    ).pack(padx=12, pady=(12, 4), anchor="w")
-
-    log_text = tk.Text(
-        right_panel,
-        bg=theme["entry_bg"], fg=theme["entry_fg"],
-        insertbackground=theme["text"],
-        font=("Consolas", 10),
-        relief="flat", bd=0,
-        wrap="word",
-        state="disabled",
-    )
-    log_scroll = ttk.Scrollbar(right_panel, orient="vertical", command=log_text.yview)
-    log_text.configure(yscrollcommand=log_scroll.set)
-
-    log_scroll.pack(side="right", fill="y", padx=(0, 4), pady=4)
+    log_text = tk.Text(right_panel, bg=theme["entry_bg"], fg=theme["entry_fg"],
+                       insertbackground=theme["text"], font=("Consolas", 10),
+                       relief="flat", bd=0, wrap="word", state="disabled")
+    log_sc = ttk.Scrollbar(right_panel, orient="vertical", command=log_text.yview)
+    log_text.configure(yscrollcommand=log_sc.set)
+    log_sc.pack(side="right", fill="y", padx=(0, 4), pady=4)
     log_text.pack(fill="both", expand=True, padx=(12, 0), pady=(0, 12))
 
-    def _log(msg: str):
-        def _update():
+    def _log(msg):
+        def _u():
             log_text.config(state="normal")
             log_text.insert("end", msg + "\n")
             log_text.see("end")
             log_text.config(state="disabled")
-        parent.after(0, _update)
+        parent.after(0, _u)
 
     def _log_clear():
-        def _update():
+        def _u():
             log_text.config(state="normal")
             log_text.delete("1.0", "end")
             log_text.config(state="disabled")
-        parent.after(0, _update)
+        parent.after(0, _u)
 
-    # Welcome message
     _log("KTEX Converter ready.")
-    _log("Add files using the buttons on the left, then choose an action.")
-    _log("")
-    _log("Supported operations:")
-    _log("  • Extract: TEX → PNG (auto-detects version & format)")
-    _log("  • Rebuild: PNG → TEX (uses saved metadata or defaults)")
-    _log("  • Info: Display TEX file details")
-    _log("─" * 40)
+    _log("Add files, then choose an action.")
+    _log("-" * 40)
 
     return main
 
@@ -1325,37 +1167,26 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''
 Examples:
-  %(prog)s extract texture.tex              Extract single file
-  %(prog)s extract *.tex -o output/         Batch extract
-  %(prog)s extract texture.tex --mipmaps    Extract all mipmap levels
-
-  %(prog)s rebuild texture.png              Rebuild from PNG
-  %(prog)s rebuild *.png -o textures/       Batch rebuild
-  %(prog)s rebuild new.png --original old.tex   Use header from original
-  %(prog)s rebuild texture.png --no-mipmaps Force no mipmaps
-
-  %(prog)s info texture.tex                 Show file information
+  %(prog)s extract texture.tex
+  %(prog)s extract *.tex -o output/
+  %(prog)s rebuild texture.png
+  %(prog)s rebuild *.png -o textures/
+  %(prog)s rebuild new.png --original old.tex
+  %(prog)s info texture.tex
         ''')
 
-    parser.add_argument('command', choices=['extract', 'rebuild', 'info'],
-                        help='Command to run')
-    parser.add_argument('input', nargs='+', help='Input file(s)')
-    parser.add_argument('-o', '--output', help='Output path or directory')
-    parser.add_argument('--original', help='Original KTEX for header (rebuild only)')
-    parser.add_argument('--mipmaps', action='store_true',
-                        help='Extract all mipmaps / Force mipmaps on rebuild')
-    parser.add_argument('--no-mipmaps', action='store_true',
-                        help='Force no mipmaps on rebuild')
-    parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
-    parser.add_argument('--json', action='store_true', help='Output info as JSON')
+    parser.add_argument('command', choices=['extract', 'rebuild', 'info'])
+    parser.add_argument('input', nargs='+')
+    parser.add_argument('-o', '--output')
+    parser.add_argument('--original')
+    parser.add_argument('--mipmaps', action='store_true')
+    parser.add_argument('--no-mipmaps', action='store_true')
+    parser.add_argument('-v', '--verbose', action='store_true')
+    parser.add_argument('--json', action='store_true')
 
     args = parser.parse_args()
 
-    print("""
-╔══════════════════════════════════════════════════════════════════════════════╗
-║            Shank 2 KTEX Universal Converter V4 - Final Edition               ║
-╚══════════════════════════════════════════════════════════════════════════════╝
-    """)
+    print("Shank 2 KTEX Converter V4\n")
 
     converter = KTEXConverter(verbose=args.verbose)
     input_files = expand_wildcards(args.input)
@@ -1374,7 +1205,7 @@ Examples:
             results = converter.batch_extract(input_files, output_dir,
                                               extract_all_mipmaps=args.mipmaps)
             success = sum(1 for r in results if r and r.success)
-            print(f"\n✓ Completed: {success}/{len(results)} succeeded")
+            print(f"\nCompleted: {success}/{len(results)}")
 
     elif args.command == 'rebuild':
         force_mipmaps = None
@@ -1393,7 +1224,7 @@ Examples:
             results = converter.batch_rebuild(input_files, output_dir,
                                               force_mipmaps=force_mipmaps)
             success = sum(1 for r in results if r and r.success)
-            print(f"\n✓ Completed: {success}/{len(results)} succeeded")
+            print(f"\nCompleted: {success}/{len(results)}")
 
     elif args.command == 'info':
         all_info = []
