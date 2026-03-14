@@ -1,5 +1,5 @@
 {
-    "latest_version": "1.0.33",
+    "latest_version": "1.0.32",
     "download_url": "https://github.com/rddening/ShankTools_for_Shank_Games/releases/download/none/ShankTools_alpha_version.zip",
     "changelog": "ktex tool\n\nluaQ tool\n\nbackground can be change from Shank 1 bg to Shank 2 bg",
     "required": false
