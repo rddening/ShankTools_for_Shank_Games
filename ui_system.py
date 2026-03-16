@@ -326,13 +326,13 @@ class _ParamBuilder:
 
 
 # ════════════════════════════════════════════════════════════════════
-#          ★ EMBEDDED TOOL PANEL (داخل النافذة الرئيسية)
+#      ★ EMBEDDED TOOL PANEL (inside the main window)
 # ════════════════════════════════════════════════════════════════════
 
 class EmbeddedToolPanel:
     """
-    لوحة أداة مدمجة داخل الـ workspace بدلاً من نافذة منفصلة.
-    تتضمن زر رجوع ⬅ للعودة لعرض البطاقات.
+    A tool panel embedded inside the workspace instead of a separate window.
+    Includes a back button ⬅ to return to the card view.
     """
 
     def __init__(
@@ -356,12 +356,12 @@ class EmbeddedToolPanel:
         t  = self.theme
         ti = self.tool_info
 
-        # ── Header مع زر الرجوع ──────────────────────────────
+        # ── Header with back button ──────────────────────────
         hdr = tk.Frame(self.parent, bg=t["header_bg"], height=56)
         hdr.pack(fill="x")
         hdr.pack_propagate(False)
 
-        # زر الرجوع ⬅
+        # Back button ⬅
         back_btn = tk.Button(
             hdr, text="⬅  Back",
             bg=t["header_bg"], fg=t["text"],
@@ -376,7 +376,7 @@ class EmbeddedToolPanel:
         back_btn.bind("<Enter>", lambda e: back_btn.config(bg=t["bg_secondary"]))
         back_btn.bind("<Leave>", lambda e: back_btn.config(bg=t["header_bg"]))
 
-        # فاصل عمودي
+        # Vertical separator
         tk.Frame(hdr, bg=t["border"], width=1).pack(
             side="left", fill="y", padx=5, pady=10
         )
@@ -579,7 +579,7 @@ class EmbeddedToolPanel:
 
 
 # ════════════════════════════════════════════════════════════════════
-#         ToolPanel القديم (Toplevel) — يبقى للتوافق
+#     Legacy ToolPanel (Toplevel) — kept for backward compatibility
 # ════════════════════════════════════════════════════════════════════
 
 class ToolPanel:
@@ -597,7 +597,7 @@ class ToolPanel:
         self.win.minsize(480, 380)
         self.win.configure(bg=theme["bg"])
         self.win.protocol("WM_DELETE_WINDOW", self._on_close)
-        # يستخدم نفس UI القديم — مختصر هنا
+        # Uses the same legacy UI — abbreviated here
         tk.Label(
             self.win, text=f"Use EmbeddedToolPanel for in-window experience",
             bg=theme["bg"], fg=theme["text_secondary"],
@@ -614,7 +614,7 @@ class ToolPanel:
 def register(app) -> None:
     """
     Called by main.py's plugin loader.
-    ★ الآن يفتح الأدوات داخل النافذة الرئيسية عبر app.show_tool_panel()
+    ★ Now opens tools inside the main window via app.show_tool_panel()
     """
     tools = discover_tools()
 
@@ -625,11 +625,11 @@ def register(app) -> None:
     for ti in tools:
         def make_command(tool_info=ti):
             def open_panel():
-                # ★ يستخدم show_tool_panel بدل Toplevel
+                # ★ Uses show_tool_panel instead of Toplevel
                 if hasattr(app, "show_tool_panel"):
                     app.show_tool_panel(tool_info)
                 else:
-                    # fallback للتوافق القديم
+                    # Fallback for legacy compatibility
                     ToolPanel(
                         parent    = app.root,
                         tool_info = tool_info,

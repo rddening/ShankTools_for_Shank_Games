@@ -14,7 +14,7 @@ import updater
 # ============================================================
 
 APP_NAME    = "ShankTools"
-APP_VERSION = "1.0.32 alpha version"
+APP_VERSION = "1.0.46 alpha version"
 
 def get_base_dir() -> Path:
     if getattr(sys, 'frozen', False):
